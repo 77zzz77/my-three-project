@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>地图上的浙江美食</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        #container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .header {
+            position: absolute;
+            top: 30px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+        
+        .header.hidden {
+            opacity: 0;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(150, 100, 255, 0.8);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #d0a0ff;
+            margin-bottom: 20px;
+        }
+        
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 15px;
+            border-radius: 15px;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+        
+        .hint.hidden {
+            opacity: 0;
+        }
+        
+        #city-card {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%;
+            max-width: 800px;
+            height: 80%;
+            max-height: 700px;
+            background: rgba(20, 10, 40, 0.95);
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(150, 100, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow-y: auto;
+        }
+        
+        #city-card.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .image-slider {
+            width: 100%;
+            height: 300px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .slider-images {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            transition: transform 0.5s ease;
+        }
+        
+        .slider-image {
+            min-width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+        }
+        
+        .slider-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .slider-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .slider-dot.active {
+            background: #b080ff;
+            transform: scale(1.2);
+        }
+        
+        #city-name {
+            color: #b080ff;
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+        
+        #city-description {
+            color: #e1d5fe;
+            line-height: 1.7;
+            margin-bottom: 25px;
+            font-size: 1rem;
+            text-align: left;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        #city-description::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        #city-description::-webkit-scrollbar-thumb {
+            background: rgba(150, 100, 255, 0.5);
+            border-radius: 5px;
+        }
+        
+        #back-btn {
+            padding: 14px 28px;
+            font-size: 1.1rem;
+            background: linear-gradient(45deg, #7a5cff, #4a1cff);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        #back-btn:hover {
+            background: linear-gradient(45deg, #8a6cff, #5a2cff);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            transition: opacity 1s ease;
+        }
+        
+        .loading-text {
+            color: #b080ff;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+        
+        .progress-bar {
+            width: 300px;
+            height: 5px;
+            background: rgba(100, 80, 255, 0.2);
+            border-radius: 5px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #7a5cff, #b080ff);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .city-tooltip {
+            position: absolute;
+            background: rgba(20, 10, 40, 0.7);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border: 1px solid rgba(200, 150, 255, 0.3);
+            box-shadow: 0 0 10px rgba(180, 120, 255, 0.5);
+            z-index: 5;
+            color: #fff;
+            text-shadow: 0 0 8px rgba(180, 120, 255, 0.8);
+            font-weight: bold;
+            backdrop-filter: blur(5px);
+        }
+        
+        .debug-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(20, 10, 40, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .music-control {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(20, 10, 40, 0.7);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 1000;
+            border: 1px solid rgba(200, 150, 255, 0.3);
+            box-shadow: 0 0 10px rgba(180, 120, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+        
+        .music-control:hover {
+            transform: scale(1.1);
+            background: rgba(30, 20, 50, 0.9);
+        }
+        
+        .music-control i {
+            color: #b080ff;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay">
+        <div>
+            <div class="loading-text">Loading...</div>
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="container"></div>
+    
+    <div class="header">
+        <h1>地图上的浙江美食</h1>
+        <p class="subtitle">点击城市模型查看详情</p>
+    </div>
+    
+    <div id="city-card">
+        <div class="image-slider">
+            <div class="slider-images" id="slider-images"></div>
+            <div class="slider-controls" id="slider-controls"></div>
+        </div>
+        <h1 id="city-name">城市名称</h1>
+        <p id="city-description">城市描述信息将在这里显示...</p>
+        <button id="back-btn">返回地图</button>
+    </div>
+
+    <div class="city-tooltip" id="city-tooltip"></div>
+    <div class="debug-info" id="debug-info">调试信息</div>
+    <div class="music-control" id="music-control">
+        <i>♪</i>
+    </div>
+
+    <script>
+        // 城市数据 - 调整位置使模型拼合在一个平面上
+        const cityData = {
+            hangzhou: {
+                name: "杭州",
+                description: "杭州是浙江省省会，以西湖闻名于世，是中国重要的电子商务中心，阿里巴巴总部所在地。杭州特色美食：西湖醋鱼，西湖醋鱼又称'叔嫂传珍''宋嫂鱼'，是浙江菜系中的代表性传统菜肴，是杭帮菜的重要象征。西湖醋鱼色泽红亮，肉质鲜嫩，酸甜清香，口感软嫩，带有蟹味，其味型以微酸微甜为特色。",
+                photos: ["images/hangzhou.png", "images/hangzhou2.jpg", "images/hangzhou3.jpg"],
+                position: { x: 0, y: 0, z: 3 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 16,
+                modelUrl: "zhejiang/杭州.glb"
+            },
+            ningbo: {
+                name: "宁波",
+                description: "宁波是重要的港口城市，宁波舟山港是世界货物吞吐量最大的港口，也是长江三角洲南翼经济中心。宁波特色美食：熏鱼，宁波熏鱼是浙江宁波的传统美食，也是宁波'老三鲜'之一。刚出锅的熏鱼呈酱红色，外酥里嫩，酥脆而不柴，内嫩有嚼劲，鱼肉紧致，味道鲜美，酸甜可口的糖醋熏鱼更是别有一番风味。宁波熏鱼是过年时的必备菜肴，寓意'年年有余'，且'爆鱼'的'爆'字还有'发'之意，寄托了人们对美好生活的向往",
+                photos: ["images/ningbo.jpg", "images/ningbo2.png", "images/ningbo3.jpg"],
+                position: { x: 4, y: 0, z: 3 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 8.5,
+                modelUrl: "zhejiang/宁波.glb"
+            },
+            wenzhou: {
+                name: "温州",
+                description: "温州以民营经济发达著称，被誉为'中国民营经济之都'，温州人遍布世界各地经商。温州特色美食：糯米饭，温州糯米饭是温州的特色早点，也是温州人日常饮食的标签之一。蒸熟的糯米晶莹剔透、粒粒分明且富有嚼劲，搭配上爽脆可口的油条碎末和咸鲜适中、肥而不腻的肉碎儿汤，口感丰富，别有风味。",
+                photos: ["images/wenzhou.png", "images/wenzhou2.jpg", "images/wenzhou3.jpg"],
+                position: { x: 1, y: 0, z: 9 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 7.8,
+                modelUrl: "zhejiang/温州.glb"
+            },
+            shaoxing: {
+                name: "绍兴",
+                description: "绍兴是历史文化名城，以黄酒、鲁迅故里和乌篷船闻名，素有'文物之邦、鱼米之乡'之称。绍兴特色美食：绍兴臭豆腐，绍兴臭豆腐是浙江绍兴的汉族民间休闲小吃，属于浙菜系，具有'闻着臭，吃着香'的独特风味，油炸后色泽黄亮，外脆里嫩，香气浓郁。蒸制的臭豆腐则有家常的乡土味道，细品臭香浓郁，酥润诱人，卤汁渗入豆腐内部，松酥多汁、鲜美可口。",
+                photos: ["images/shaoxing.png", "images/shaoxing2.jpg", "images/shaoxing3.jpg"],
+                position: { x: 2, y: 0, z: 4 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 7.8,
+                modelUrl: "zhejiang/绍兴.glb"
+            },
+            huzhou: {
+                name: "湖州",
+                description: "湖州位于太湖南岸，是'丝绸之府、鱼米之乡、文化之邦'，莫干山是著名避暑胜地。湖州特色美食：太湖白鱼，太湖白鱼是湖州的特色美食之一，也是'太湖三白'之一 。湖州人烹饪太湖白鱼的方法多样，最负盛名的是'清蒸白鱼'，太湖白鱼不仅味道鲜美，还具有较高的药用价值。",
+                photos: ["images/huzhou.jpg", "images/huzhou2.png", "images/huzhou3.jpg"],
+                position: { x: -0.4, y: 0, z: 1 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 7.8,
+                modelUrl: "zhejiang/湖州.glb"
+            },
+            jiaxing: {
+                name: "嘉兴",
+                description: "嘉兴是中国共产党诞生地，南湖红船闻名全国，同时也是江南水乡文化的代表城市之一。嘉兴特色美食：平湖糟蛋，平湖糟蛋是浙江省平湖市著名的传统美食，有'天下第一蛋'的美誉。沙甜爽口，气味浓香，带有独特的酒香，食后余香满口。相传起源于清代，因平湖酿酒作坊鸭蛋混入酒糟意外制成。乾隆年间被列为贡品，获御赐'京牌'。近代以来，在南洋劝业会、巴拿马国际博览会等多次获得金牌，声名远扬。",
+                photos: ["images/jiaxing.jpg", "images/jiaxing2.jpg", "images/jiaxing3.png"],
+                position: { x: 0.3, y: 0, z: 2.5 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 7,
+                modelUrl: "zhejiang/嘉兴.glb"
+            },
+            jinhua: {
+                name: "金华",
+                description: "金华以火腿闻名，义乌小商品市场是全球最大的小商品集散中心，横店影视城也位于此。金华特色美食：火腿，金华火腿以'色、香、味、形'四绝著称，瘦肉呈玫瑰红色，皮面呈金黄色，脂肪洁白，熟制后呈半透明，晶莹剔透。不经熟制的火腿咸甜适中，鲜嫩多汁，食后回甜，生食风味更佳；熟制后香气浓郁，可除腥提味，是高级烹饪原料。富含人体必需的蛋白质、脂肪以及多种矿物元素、维生素，多种氨基酸含量是鲜肉数倍，具有健脾开胃、生津益血、固骨髓、健足力和愈伤口等药用价值。",
+                photos: ["images/jinhua.jpg", "images/jinhua2.png", "images/jinhua3.jpg"],
+                position: { x: 0, y: 0, z: 5 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 8.0,
+                modelUrl: "zhejiang/金华.glb"
+            },
+            quzhou: {
+                name: "衢州",
+                description: "衢州位于浙江西部，是国家级历史文化名城，以衢州柑橘和孔氏南宗家庙著称。衢州特色美食：烧饼，衢州烧饼又称烤饼，是浙江衢州传统的地方特色小吃之一。主要原料为面粉、葱花、猪肉、梅干菜等。",
+                photos: ["images/quzhou.jpg", "images/quzhou2.png", "images/quzhou3.jpg"],
+                position: { x: -2, y: 0, z: 5 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 7.8,
+                modelUrl: "zhejiang/衢州.glb"
+            },
+            taizhou: {
+                name: "台州",
+                description: "台州是制造业重镇，吉利汽车发源地，天台山和神仙居是著名旅游景区。台州特色美食：温岭嵌糕，温岭嵌糕是浙江台州温岭一带的特色年糕美食，被誉为温岭'早餐江湖'的C位担当。糕皮软糯Q弹，带有米的清甜，韧性十足。馅料丰富多样，各种食材的口感相互交织，如肥而不腻的红烧肉、脆松的油条等，一口下去，层次丰富，滋味十足。嵌糕不仅是一种美食，更是温岭文化的象征，体现了温岭人讲求快节奏、兼容并包和追求精致的饮食文化。",
+                photos: ["images/taizhou.jpg", "images/taizhou2.png", "images/taizhou3.jpg"],
+                position: { x: 2, y: 0, z: 6 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 10,
+                modelUrl: "zhejiang/台州.glb"
+            },
+            lishui: {
+                name: "丽水",
+                description: "丽水是浙江生态屏障，被誉为'浙江绿谷'，龙泉青瓷和宝剑是当地特色工艺品。丽水特色美食：缙云土爽面，缙云土爽面是浙江丽水缙云的特色传统美食，面条细长如丝，色泽金黄，带有饱满的小麦清香，口感柔软、柔韧爽滑，因制作时已加入食盐，煮面时一般无需再放盐，煮后不糊汤，入口爽滑，回味留香。",
+                photos: ["images/lishui.png", "images/lishui2.jpg", "images/lishui3.jpg"],
+                position: { x: -1, y: 0, z: 7 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 10,
+                modelUrl: "zhejiang/丽水.glb"
+            },
+            zhoushan: {
+                name: "舟山",
+                description: "舟山是我国第一个以群岛建制的地级市，拥有普陀山佛教圣地和舟山渔场。舟山特色美食：蟹糊，舟山蟹糊是浙江舟山的传统海鲜美食，呈黄白相间色，肉质如果冻般颤巍巍，口感鲜甜冰爽，蟹黄肥美，绵软密实、入口即化，蘸上些许米酒或米醋，味道更佳，是配粥、拌饭、下酒的佳品。富含蛋白质、脂肪、钙、磷、铁及维生素A等营养成分，具有较高的营养价值。",
+                photos: ["images/zhoushan.png", "images/zhoushan2.jpg", "images/zhoushan3.jpg"],
+                position: { x: 2.5, y: 0, z: 3.5 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 8.5,
+                modelUrl: "zhejiang/舟山.glb"
+            }
+        };
+
+        // 全局变量
+        let scene, camera, renderer, controls;
+        let raycaster, mouse;
+        let cityModels = {};
+        let stars = [];
+        let currentCity = null;
+        let debugInfo = document.getElementById('debug-info');
+        let currentSlideIndex = 0;
+        let slideInterval;
+        let audioContext;
+        let backgroundMusic;
+        let isMusicPlaying = false;
+        let musicAnalyser;
+        let musicDataArray;
+
+        // 初始化场景
+        function init() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a20);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 80, 20);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.setClearColor(0x1a0a30, 1);
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // 添加轨道控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 10;
+            controls.maxDistance = 50;
+            
+            // 添加灯光
+            const ambientLight = new THREE.AmbientLight(0x8060ff, 0.8);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xb090ff, 0.9);
+            directionalLight1.position.set(1, 1, 1).normalize();
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0x8060ff, 0.7);
+            directionalLight2.position.set(-1, -1, -1).normalize();
+            scene.add(directionalLight2);
+            
+            const pointLight = new THREE.PointLight(0xa080ff, 1.5, 50);
+            pointLight.position.set(0, 10, 0);
+            scene.add(pointLight);
+            
+            // 创建星空背景
+            createStarField();
+            
+            // 初始化射线和鼠标对象
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // 加载所有城市模型
+            loadAllCityModels();
+            
+            // 初始化音频
+            initAudio();
+            
+            // 添加事件监听
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('click', onMouseClick);
+            document.getElementById('music-control').addEventListener('click', toggleMusic);
+            document.getElementById('back-btn').addEventListener('click', backToMap);
+            
+            // 隐藏加载界面
+            setTimeout(() => {
+                document.querySelector('.loading-overlay').style.opacity = 0;
+                setTimeout(() => {
+                    document.querySelector('.loading-overlay').style.display = 'none';
+                }, 1000);
+            }, 2000);
+            
+            // 开始动画
+            animate();
+        }
+
+        // 初始化音频
+        function initAudio() {
+            try {
+                // 创建音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 创建分析器
+                musicAnalyser = audioContext.createAnalyser();
+                musicAnalyser.fftSize = 256;
+                
+                // 创建音乐源
+                backgroundMusic = new Audio();
+                backgroundMusic.src = 'music/背景音1.mp3'; // 替换为您的音乐文件路径
+                backgroundMusic.loop = true;
+                
+                // 创建音频节点
+                const source = audioContext.createMediaElementSource(backgroundMusic);
+                source.connect(musicAnalyser);
+                musicAnalyser.connect(audioContext.destination);
+                
+                // 创建用于可视化的数据数组
+                musicDataArray = new Uint8Array(musicAnalyser.frequencyBinCount);
+                
+                // 自动播放音乐（需要用户交互后）
+                document.addEventListener('click', firstInteraction, { once: true });
+            } catch (e) {
+                console.error('音频初始化失败:', e);
+            }
+        }
+        
+        // 首次交互后自动播放音乐
+        function firstInteraction() {
+            if (!isMusicPlaying) {
+                toggleMusic();
+            }
+        }
+        
+        // 切换音乐播放状态
+        function toggleMusic() {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            if (!isMusicPlaying) {
+                backgroundMusic.play()
+                    .then(() => {
+                        isMusicPlaying = true;
+                        document.getElementById('music-control').innerHTML = '<i>♫</i>';
+                        console.log('音乐开始播放');
+                    })
+                    .catch(e => {
+                        console.error('音乐播放失败:', e);
+                    });
+            } else {
+                backgroundMusic.pause();
+                isMusicPlaying = false;
+                document.getElementById('music-control').innerHTML = '<i>♪</i>';
+                console.log('音乐已暂停');
+            }
+        }
+
+        // 创建星空背景
+        function createStarField() {
+            const starCount = 5000;
+            
+            for (let i = 0; i < starCount; i++) {
+                const geometry = new THREE.SphereGeometry(Math.random() * 0.2 + 0.05, 6, 6);
+                
+                const colors = [0xffffff, 0xb090ff, 0xffccff, 0xd0a0ff];
+                const material = new THREE.MeshBasicMaterial({
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    emissive: 0x888888
+                });
+                
+                const star = new THREE.Mesh(geometry, material);
+                
+                const radius = 100 + Math.random() * 900;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                
+                star.userData = {
+                    basePosition: new THREE.Vector3(
+                        radius * Math.sin(phi) * Math.cos(theta),
+                        radius * Math.sin(phi) * Math.sin(theta),
+                        radius * Math.cos(phi)
+                    ),
+                    speed: 0.2 + Math.random() * 0.8,
+                    amplitude: 0.5 + Math.random() * 2
+                };
+                
+                scene.add(star);
+                stars.push(star);
+            }
+            
+            // 较大的明亮星星
+            for (let i = 0; i < 30; i++) {
+                const geometry = new THREE.SphereGeometry(Math.random() * 0.3 + 0.1, 10, 10);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xffccff,
+                    emissive: 0xd0a0ff
+                });
+                
+                const brightStar = new THREE.Mesh(geometry, material);
+                
+                const radius = 150 + Math.random() * 250;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                
+                brightStar.userData = {
+                    basePosition: new THREE.Vector3(
+                        radius * Math.sin(phi) * Math.cos(theta),
+                        radius * Math.sin(phi) * Math.sin(theta),
+                        radius * Math.cos(phi)
+                    ),
+                    speed: 0.1 + Math.random() * 0.4,
+                    amplitude: 0.3 + Math.random() * 1
+                };
+                
+                scene.add(brightStar);
+                stars.push(brightStar);
+            }
+        }
+
+        // 加载所有城市模型
+        function loadAllCityModels() {
+            const loader = new THREE.GLTFLoader();
+            let loadedCount = 0;
+            const totalCount = Object.keys(cityData).length;
+            
+            Object.keys(cityData).forEach(cityId => {
+                const city = cityData[cityId];
+                
+                loader.load(
+                    city.modelUrl,
+                    (gltf) => {
+                        const model = gltf.scene;
+                        
+                        // 计算模型边界框
+                        const box = new THREE.Box3().setFromObject(model);
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        
+                        // 计算缩放比例
+                        const maxDimension = Math.max(size.x, size.y, size.z);
+                        const scale = city.scale / maxDimension;
+                        
+                        model.scale.set(scale, scale, scale);
+                        
+                        // 将模型中心对准原点
+                        const center = new THREE.Vector3();
+                        box.getCenter(center);
+                        model.position.sub(center.multiplyScalar(scale));
+                        
+                        // 设置模型位置
+                        model.position.set(city.position.x, city.position.y, city.position.z);
+                        
+                        // 设置模型旋转
+                        model.rotation.set(city.rotation.x, city.rotation.y, city.rotation.z);
+                        
+                        // 添加用户数据用于识别
+                        model.userData = { cityId: cityId };
+                        
+                        // 启用射线检测
+                        model.traverse(child => {
+                            if (child.isMesh) {
+                                child.userData = { cityId: cityId };
+                            }
+                        });
+                        
+                        scene.add(model);
+                        cityModels[cityId] = model;
+                        
+                        loadedCount++;
+                        const progress = Math.floor((loadedCount / totalCount) * 100);
+                        document.getElementById('progress').style.width = `${progress}%`;
+                        
+                        if (loadedCount === totalCount) {
+                            console.log('所有城市模型加载完成');
+                            debugInfo.textContent = '所有模型加载完成';
+                        }
+                    },
+                    (xhr) => {
+                        const percent = Math.floor((xhr.loaded / xhr.total) * 100);
+                        document.getElementById('progress').style.width = `${percent}%`;
+                        debugInfo.textContent = `加载进度: ${percent}%`;
+                    },
+                    (error) => {
+                        console.error(`加载 ${cityId} 模型失败:`, error);
+                        loadedCount++;
+                        debugInfo.textContent = `加载 ${cityId} 失败: ${error.message}`;
+                    }
+                );
+            });
+        }
+
+        // 窗口调整大小
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // 鼠标移动
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            
+            // 更新射线
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 检查与城市模型的交点
+            const intersects = raycaster.intersectObjects(Object.values(cityModels), true);
+            
+            if (intersects.length > 0) {
+                const cityId = intersects[0].object.userData.cityId;
+                const city = cityData[cityId];
+                
+                // 显示工具提示
+                const tooltip = document.getElementById('city-tooltip');
+                tooltip.textContent = city.name;
+                tooltip.style.opacity = 1;
+                tooltip.style.left = (event.clientX + 10) + 'px';
+                tooltip.style.top = (event.clientY + 10) + 'px';
+                
+                // 高亮显示当前模型
+                Object.values(cityModels).forEach(model => {
+                    model.traverse(child => {
+                        if (child.isMesh) {
+                            if (child.userData.originalMaterial) {
+                                child.material = child.userData.originalMaterial;
+                            }
+                        }
+                    });
+                });
+                
+                // 高亮当前选中模型
+                const selectedModel = cityModels[cityId];
+                selectedModel.traverse(child => {
+                    if (child.isMesh) {
+                        if (!child.userData.originalMaterial) {
+                            child.userData.originalMaterial = child.material;
+                        }
+                        const highlightMaterial = child.material.clone();
+                        highlightMaterial.emissive = new THREE.Color(0xb090ff);
+                        highlightMaterial.emissiveIntensity = 0.5;
+                        child.material = highlightMaterial;
+                    }
+                });
+                
+                debugInfo.textContent = `悬停: ${city.name}`;
+            } else {
+                // 隐藏工具提示
+                const tooltip = document.getElementById('city-tooltip');
+                tooltip.style.opacity = 0;
+                
+                // 恢复所有模型的原始材质
+                Object.values(cityModels).forEach(model => {
+                    model.traverse(child => {
+                        if (child.isMesh && child.userData.originalMaterial) {
+                            child.material = child.userData.originalMaterial;
+                        }
+                    });
+                });
+                
+                debugInfo.textContent = '未悬停在模型上';
+            }
+        }
+
+        // 鼠标点击
+        function onMouseClick(event) {
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 检查与城市模型的交点
+            const intersects = raycaster.intersectObjects(Object.values(cityModels), true);
+            
+            if (intersects.length > 0) {
+                const cityId = intersects[0].object.userData.cityId;
+                showCityCard(cityId);
+                debugInfo.textContent = `点击了: ${cityData[cityId].name}`;
+            } else {
+                debugInfo.textContent = '未点击到模型';
+            }
+        }
+
+        // 显示城市卡片
+        function showCityCard(cityId) {
+            const city = cityData[cityId];
+            
+            if (city) {
+                currentCity = cityId;
+                
+                document.getElementById('city-name').textContent = city.name;
+                document.getElementById('city-description').textContent = city.description;
+                
+                // 创建图片轮播
+                createImageSlider(city.photos);
+                
+                document.getElementById('city-card').classList.add('active');
+                
+                // 隐藏文字提示
+                document.querySelector('.header').classList.add('hidden');
+                document.querySelector('.hint').classList.add('hidden');
+                
+                // 暂停控制器
+                controls.enabled = false;
+            }
+        }
+
+        // 创建图片轮播
+        function createImageSlider(photos) {
+            const sliderImages = document.getElementById('slider-images');
+            const sliderControls = document.getElementById('slider-controls');
+            
+            // 清空现有内容
+            sliderImages.innerHTML = '';
+            sliderControls.innerHTML = '';
+            
+            // 添加图片
+            photos.forEach((photo, index) => {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'slider-image';
+                imgDiv.style.backgroundImage = `url(${photo})`;
+                sliderImages.appendChild(imgDiv);
+                
+                // 添加控制点
+                const dot = document.createElement('div');
+                dot.className = 'slider-dot';
+                if (index === 0) dot.classList.add('active');
+                dot.addEventListener('click', () => goToSlide(index));
+                sliderControls.appendChild(dot);
+            });
+            
+            // 开始自动轮播
+            startSlider();
+        }
+
+        // 开始轮播
+        function startSlider() {
+            clearInterval(slideInterval);
+            currentSlideIndex = 0;
+            updateSlider();
+            
+            slideInterval = setInterval(() => {
+                currentSlideIndex = (currentSlideIndex + 1) % document.querySelectorAll('.slider-image').length;
+                updateSlider();
+            }, 3000);
+        }
+
+        // 跳转到指定幻灯片
+        function goToSlide(index) {
+            currentSlideIndex = index;
+            updateSlider();
+            // 重置计时器
+            clearInterval(slideInterval);
+            slideInterval = setInterval(() => {
+                currentSlideIndex = (currentSlideIndex + 1) % document.querySelectorAll('.slider-image').length;
+                updateSlider();
+            }, 3000);
+        }
+
+        // 更新幻灯片显示
+        function updateSlider() {
+            const sliderImages = document.getElementById('slider-images');
+            const dots = document.querySelectorAll('.slider-dot');
+            
+            // 更新图片位置
+            sliderImages.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
+            
+            // 更新控制点状态
+            dots.forEach((dot, index) => {
+                if (index === currentSlideIndex) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+
+        // 返回地图视图
+        function backToMap() {
+            document.getElementById('city-card').classList.remove('active');
+            
+            // 停止轮播
+            clearInterval(slideInterval);
+            
+            // 重新显示所有文字
+            document.querySelector('.header').classList.remove('hidden');
+            document.querySelector('.hint').classList.remove('hidden');
+            
+            // 重新启用控制器
+            controls.enabled = true;
+            currentCity = null;
+        }
+
+            // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新星星动画
+            stars.forEach(star => {
+                const basePos = star.userData.basePosition;
+                const speed = star.userData.speed;
+                const amplitude = star.userData.amplitude;
+                
+                const waveOffset = Math.sin(Date.now() * 0.001 * speed) * amplitude;
+                
+                star.position.x = basePos.x + waveOffset * Math.sin(Date.now() * 0.0005);
+                star.position.y = basePos.y + waveOffset * Math.cos(Date.now() * 0.0003);
+                star.position.z = basePos.z + waveOffset * Math.sin(Date.now() * 0.0007);
+            });
+            
+            // 更新音乐可视化
+            if (isMusicPlaying && musicAnalyser) {
+                musicAnalyser.getByteFrequencyData(musicDataArray);
+                // 这里可以添加音乐可视化效果
+            }
+            
+            // 更新控制器
+            controls.update();
+            
+            renderer.render(scene, camera);
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
